@@ -2,7 +2,58 @@ import { Task, TaskDraft, TaskPriority, TaskStatus } from '@/types/task';
 
 const STORAGE_KEY = 'team-task-dashboard-mock-data';
 
+export type MockFailureOperation = 'create' | 'update' | 'delete' | 'status' | 'assignee';
+
+interface MockFailureState {
+  enabled: boolean;
+  operation: MockFailureOperation | null;
+  message: string;
+}
+
+const mockFailureState: MockFailureState = {
+  enabled: false,
+  operation: null,
+  message: 'Simulated mock API failure.',
+};
+
 export const TEAM_MEMBERS = ['Aarav Singh', 'Priya Nair', 'Daniel Kim', 'Maya Chen', 'Lucas Brown'];
+
+export const setMockFailureMode = (
+  config: { enabled?: boolean; operation?: MockFailureOperation | null; message?: string } | null,
+) => {
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
+    return;
+  }
+
+  if (!config) {
+    mockFailureState.enabled = false;
+    mockFailureState.operation = null;
+    mockFailureState.message = 'Simulated mock API failure.';
+    return;
+  }
+
+  mockFailureState.enabled = Boolean(config.enabled);
+  mockFailureState.operation = config.operation ?? null;
+  mockFailureState.message = config.message ?? 'Simulated mock API failure.';
+};
+
+export const resetMockFailureMode = () => setMockFailureMode(null);
+
+const triggerMockFailure = (operation: MockFailureOperation) => {
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
+    return;
+  }
+
+  if (!mockFailureState.enabled) {
+    return;
+  }
+
+  if (mockFailureState.operation && mockFailureState.operation !== operation) {
+    return;
+  }
+
+  throw new Error(mockFailureState.message || `Mock ${operation} request failed.`);
+};
 
 const addDays = (days: number) => {
   const date = new Date();
@@ -112,6 +163,7 @@ export const fetchTasks = async (): Promise<Task[]> => {
 
 export const createTask = async (draft: TaskDraft): Promise<Task> => {
   await wait(500);
+  triggerMockFailure('create');
   const nextTask: Task = {
     id: draft.id || `task-${Date.now()}`,
     title: draft.title.trim(),
@@ -131,6 +183,7 @@ export const createTask = async (draft: TaskDraft): Promise<Task> => {
 
 export const updateTask = async (taskId: string, changes: Partial<TaskDraft>): Promise<Task> => {
   await wait(450);
+  triggerMockFailure('update');
   const tasks = readStoredTasks();
   const index = tasks.findIndex((task) => task.id === taskId);
 
@@ -146,6 +199,7 @@ export const updateTask = async (taskId: string, changes: Partial<TaskDraft>): P
 
 export const deleteTask = async (taskId: string): Promise<string> => {
   await wait(350);
+  triggerMockFailure('delete');
   const tasks = readStoredTasks();
   const filtered = tasks.filter((task) => task.id !== taskId);
 
@@ -162,11 +216,13 @@ export const updateTaskStatus = async (
   status: TaskStatus,
 ): Promise<Task> => {
   await wait(350);
+  triggerMockFailure('status');
   return updateTask(taskId, { status });
 };
 
 export const assignTask = async (taskId: string, assignee: string): Promise<Task> => {
   await wait(300);
+  triggerMockFailure('assignee');
   return updateTask(taskId, { assignee });
 };
 
